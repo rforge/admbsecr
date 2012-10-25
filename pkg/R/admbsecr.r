@@ -107,14 +107,14 @@ NULL
 #' @param autogen logical, if \code{TRUE}, the appropriate \code{.tpl} file is written
 #' to \code{admbwd} (or the current working directory if \code{admbwd} is \code{NULL}).
 #' If \code{FALSE}, the \code{.tpl} file already be located in \code{admbwd} (or the
-#' current working directory if \code{admb} is \code{NULL}. Usually only set to
+#' current working directory if \code{admb} is \code{NULL}). Usually only set to
 #' \code{FALSE} for development purposes.
 #' @return An object of class 'admb'.
 #' @author Ben Stevenson
 #' @seealso \code{\link[R2admb]{do_admb}}, \code{\link[secr]{secr.fit}},
 #' \code{\link[secr]{make.capthist}}, \code{\link[secr]{read.traps}}.
 #' @export
-admbsecr <- function(capt, traps, mask, sv = "auto", ssqtoa = NULL, cutoff = NULL,
+admbsecr <- function(capt, traps = NULL, mask, sv = "auto", ssqtoa = NULL, cutoff = NULL,
                      admbwd = NULL, method = "simple", memory = NULL, profpars = NULL,
                      clean = TRUE, verbose = FALSE, trace = FALSE, autogen = TRUE){
   ## Warnings for incorrect input.
@@ -132,6 +132,10 @@ admbsecr <- function(capt, traps, mask, sv = "auto", ssqtoa = NULL, cutoff = NUL
   }
   trace <- as.numeric(trace)
   currwd <- getwd()
+  ## If traps is NULL, see if it is provided as part of capt.
+  if (is.null(traps)){
+    traps <- traps(capt)
+  }
   ## Moving to ADMB working directory.
   if (!is.null(admbwd)){
     setwd(admbwd)
