@@ -87,9 +87,11 @@ NULL
 #' suitable if \code{method} is \code{"simple"}. Otherwise, the \code{1} values in
 #' this array must be changed to the value of the recorded supplementary information,
 #' which will depend on \code{method} (see 'Details'). When \code{method} is
-#' \code{"sstoa"}, this array must be of dimension \code{(n, S, K, 2)}, where
-#' \code{capt[, , , 1]} provides the signal strength information and
-#' \code{capt[, , , 2]} provides the time of arrival information.
+#' \code{"sstoa"} or \code{"mrds"}, this array must be of dimension \code{(n, S, K, 2)}.
+#' With \code{"sstoa"},  \code{capt[, , , 1]} provides the signal strength information and
+#' \code{capt[, , , 2]} provides the time of arrival information. With \code{"mrds"},
+#' \code{capt[, , , 1]} provides the binary capture history array and \code{capt[, , , 2]}
+#' provides the distances between all traps (regardless of capture) and detected animals.
 #' @param traps a matrix containing the coordinates of trap locations. The object
 #' returned by \code{read.traps()} is suitable.
 #' @param mask a mask object. The object returned by \code{make.mask()} is suitable.
@@ -131,7 +133,7 @@ NULL
 #' the current working directory if \code{admb} is \code{NULL}). Usually only set to
 #' \code{FALSE} for development purposes.
 #' @return An object of class 'admb'.
-#' 
+#'
 #' The following functions can be used to extract model components: \code{summary()},
 #' \code{AIC()}, \code{logLik()}, \code{deviance()}, \code{vcov()}, \code{coef()},
 #' \code{stdEr()}, and \code{confint()}.
@@ -160,6 +162,12 @@ admbsecr <- function(capt, traps = NULL, mask, sv = "auto", bounds = NULL,
   if (method == "ss" & is.null(cutoff)){
     stop("cutoff must be supplied for signal strength analysis")
   }
+  if (!is.array(capt) | !(length(dim(capt)) == 3 | length(dim(capt)) == 4)){
+    stop("capt must be a three or four-dimensional array.")
+  }
+  if (dim(capt)[2] != 1){
+    stop("admbsecr only currently works for a single sampling session.")
+  }
   if (trace){
     verbose <- TRUE
   }
@@ -179,6 +187,10 @@ admbsecr <- function(capt, traps = NULL, mask, sv = "auto", bounds = NULL,
   if (autogen){
     prefix <- "secr"
     make.all.tpl.easy(memory = memory, methods = method)
+    bessel.exists <- file.access("bessel.cxx", mode = 0)
+    if (bessel.exists == -1){
+      make.bessel()
+    }
   } else {
     prefix <- paste(method, "secr", sep = "")
   }
@@ -242,7 +254,7 @@ admbsecr <- function(capt, traps = NULL, mask, sv = "auto", bounds = NULL,
     names(sv) <- parnames
   } else if (is.null(names(sv))){
     stop("sv is not a named vector.")
-  } else if (length(unique(sv)) != length(sv)){
+  } else if (length(unique(names(sv))) != length(names(sv))){
     stop("sv names are not all unique")
   } else {
     ## Warning if a listed parameter name is not used in this model.
@@ -281,7 +293,7 @@ admbsecr <- function(capt, traps = NULL, mask, sv = "auto", bounds = NULL,
   ## Setting up parameters for do_admb.
   if (method == "simple"){
     data <- list(n = n, ntraps = k, nmask = nm, A = A, capt = capt,
-                 dist = dist, traps = traps, trace = trace)
+                 dist = dist, trace = trace)
     params <- list(D = sv[1], g0 = sv[2], sigma = sv[3])
   } else if (method == "toa"){
     if (is.null(ssqtoa)){
@@ -311,8 +323,12 @@ admbsecr <- function(capt, traps = NULL, mask, sv = "auto", bounds = NULL,
     data <- list(n = n, ntraps = k, nmask = nm, A = A, distcapt = capt, dist = dist,
                  capt = bincapt, trace = trace)
     params <- list(D = sv[1], g0 = sv[2], sigma = sv[3], alpha = sv[4])
+  } else if (method == "mrds"){
+    data <- list(n = n, ntraps = k, nmask = nm, A = A, capt = capt[, , 1],
+                 dist = dist, indivdist = capt[, , 2], trace = trace)
+    params <- list(D = sv[1], g0 = sv[2], sigma = sv[3])
   } else {
-    stop('method must be either "simple", "toa", "ang", "ss", "sstoa", or "dist"')
+    stop('method must be either "simple", "toa", "ang", "ss", "sstoa", "dist", or "mrds"')
   }
   ## Fitting the model.
   if (!is.null(profpars)){
@@ -323,12 +339,19 @@ admbsecr <- function(capt, traps = NULL, mask, sv = "auto", bounds = NULL,
   } else {
     fit <- do_admb(prefix, data = data, params = params, bounds = bounds, verbose = verbose,
                    safe = FALSE,
-                   run.opts = run.control(checkdata = "write", checkparam = "write",
-                     clean_files = clean))
+                   run.opts = run.control(checkdata = "write",
+                     checkparam = "write", clean_files = clean))
   }
   if (autogen){
     file.remove("secr.tpl")
+    if (bessel.exists == -1){
+      file.remove("bessel.cxx")
+    }
   }
   setwd(currwd)
+  fit$data <- data
+  fit$traps <- traps
+  fit$mask <- mask
+  fit$method <- method
   fit
 }
