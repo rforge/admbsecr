@@ -1,5 +1,5 @@
 ## Package imports for roxygenise to pass to NAMESPACE.
-#' @import R2admb secr
+#' @import CircStats R2admb secr
 NULL
 
 #' Fitting SECR models in ADMB
@@ -93,8 +93,9 @@ NULL
 #' \code{capt[, , , 1]} provides the binary capture history array and \code{capt[, , , 2]}
 #' provides the distances between all traps (regardless of capture) and detected animals.
 #' @param traps a matrix containing the coordinates of trap locations. The object
-#' returned by \code{read.traps()} is suitable.
-#' @param mask a mask object. The object returned by \code{make.mask()} is suitable.
+#' returned by \code{\link[secr]{read.traps}} is suitable.
+#' @param mask a mask object. The object returned by \code{\link[secr]{make.mask}} is
+#' suitable.
 #' @param sv either \code{"auto"}, or a named vector. If \code{auto}, starting values for
 #' all parameters are automatically generated. If a vector, the elements are the starting
 #' values and the names indicate which parameter these correspond to. Starting values for
@@ -109,6 +110,10 @@ NULL
 #' parameters need not be provided; if there is no component corresponding to a
 #' parameter it keeps its default bounds. See 'Details' for list of parameters used by
 #' each method.
+#' @param fix a list with optional components corresponding to parameters which are to
+#' be fixed rather than estimated. Each component should be a vector of length one,
+#' specifying the fixed value of the parameter, and the name of the component should be
+#' the name of the paramter to which this value applies.
 #' @param ssqtoa an optional matrix. If calculated before call to \code{admbsecr},
 #' providing this will prevent recalculation.
 #' @param cutoff The signal strength threshold of detection. Required if \code{method} is
@@ -134,9 +139,11 @@ NULL
 #' \code{FALSE} for development purposes.
 #' @return An object of class 'admb'.
 #'
-#' The following functions can be used to extract model components: \code{summary()},
-#' \code{AIC()}, \code{logLik()}, \code{deviance()}, \code{vcov()}, \code{coef()},
-#' \code{stdEr()}, and \code{confint()}.
+#' The following functions can be used to extract model components:
+#' \code{\link[base]{summary}}, \code{\link[R2admb:AIC.admb]{AIC}},
+#' \code{\link[R2admb:AIC.admb]{logLik}}, \code{\link[R2admb:AIC.admb]{deviance}},
+#' \code{\link[R2admb:AIC.admb]{vcov}}, \code{\link[R2admb:AIC.admb]{coef}},
+#' \code{\link[R2admb:AIC.admb]{stdEr}}, and \code{\link[R2admb:AIC.admb]{confint}}.
 #'
 #' The latter takes arguments \code{level} and \code{method}, which specify the confidence
 #' level and calculation method respectively. The default method gives quadratic (Wald)
@@ -145,10 +152,8 @@ NULL
 #' \code{profpars} is non-null and provides names of model parameters that are to be
 #' profiled.
 #' @author Ben Stevenson
-#' @seealso \code{\link[R2admb]{do_admb}}, \code{\link[secr]{secr.fit}},
-#' \code{\link[secr]{make.capthist}}, \code{\link[secr]{read.traps}}.
 #' @export
-admbsecr <- function(capt, traps = NULL, mask, sv = "auto", bounds = NULL,
+admbsecr <- function(capt, traps = NULL, mask, sv = "auto", bounds = NULL, fix = NULL,
                      ssqtoa = NULL, cutoff = NULL, admbwd = NULL, method = "simple",
                      memory = NULL, profpars = NULL, clean = TRUE, verbose = FALSE,
                      trace = FALSE, autogen = TRUE){
@@ -248,7 +253,7 @@ admbsecr <- function(capt, traps = NULL, mask, sv = "auto", bounds = NULL,
   if (is.list(sv)){
     sv <- c(sv, recursive = TRUE)
   }
-  ## Setting sv to a vector full of "auto" if required.
+  ##Setting sv to a vector full of "auto" if required.
   if (length(sv) == 1 & sv[1] == "auto"){
     sv <- rep("auto", npars)
     names(sv) <- parnames
@@ -271,6 +276,11 @@ admbsecr <- function(capt, traps = NULL, mask, sv = "auto", bounds = NULL,
     }
     ## Reordering sv vector.
     sv <- sv[parnames]
+  }
+  ## Adding fixed parameters to "sv" in case they are required for
+  ## determining further start values.
+  for (i in names(fix)){
+    sv[i] <- fix[[i]]
   }
   autofuns <- list("D" = autoD, "g0" = autog0, "sigma" = autosigma,
                    "sigmatoa" = autosigmatoa, "kappa" = autokappa,
@@ -330,6 +340,12 @@ admbsecr <- function(capt, traps = NULL, mask, sv = "auto", bounds = NULL,
   } else {
     stop('method must be either "simple", "toa", "ang", "ss", "sstoa", "dist", or "mrds"')
   }
+  ## Removing fixed parameters from param list and adding them to the data instead.
+  for (i in names(fix)){
+    params[[i]] <- NULL
+    bounds[[i]] <- NULL
+    data[[i]] <- fix[[i]]
+  }
   ## Fitting the model.
   if (!is.null(profpars)){
     fit <- do_admb(prefix, data = data, params = params, bounds = bounds, verbose = verbose,
@@ -353,5 +369,6 @@ admbsecr <- function(capt, traps = NULL, mask, sv = "auto", bounds = NULL,
   fit$traps <- traps
   fit$mask <- mask
   fit$method <- method
+  class(fit) <- c(class(fit), method, "admbsecr")
   fit
 }

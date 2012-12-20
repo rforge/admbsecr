@@ -3,10 +3,10 @@
 \title{Fitting SECR models in ADMB}
 \usage{
   admbsecr(capt, traps = NULL, mask, sv = "auto",
-    bounds = NULL, ssqtoa = NULL, cutoff = NULL,
-    admbwd = NULL, method = "simple", memory = NULL,
-    profpars = NULL, clean = TRUE, verbose = FALSE,
-    trace = FALSE, autogen = TRUE)
+    bounds = NULL, fix = NULL, ssqtoa = NULL,
+    cutoff = NULL, admbwd = NULL, method = "simple",
+    memory = NULL, profpars = NULL, clean = TRUE,
+    verbose = FALSE, trace = FALSE, autogen = TRUE)
 }
 \arguments{
   \item{capt}{an array of dimension \code{(n, S, K)}, where
@@ -28,11 +28,11 @@
   traps (regardless of capture) and detected animals.}
 
   \item{traps}{a matrix containing the coordinates of trap
-  locations. The object returned by \code{read.traps()} is
-  suitable.}
+  locations. The object returned by
+  \code{\link[secr]{read.traps}} is suitable.}
 
   \item{mask}{a mask object. The object returned by
-  \code{make.mask()} is suitable.}
+  \code{\link[secr]{make.mask}} is suitable.}
 
   \item{sv}{either \code{"auto"}, or a named vector. If
   \code{auto}, starting values for all parameters are
@@ -55,6 +55,13 @@
   not be provided; if there is no component corresponding
   to a parameter it keeps its default bounds. See 'Details'
   for list of parameters used by each method.}
+
+  \item{fix}{a list with optional components corresponding
+  to parameters which are to be fixed rather than
+  estimated. Each component should be a vector of length
+  one, specifying the fixed value of the parameter, and the
+  name of the component should be the name of the paramter
+  to which this value applies.}
 
   \item{ssqtoa}{an optional matrix. If calculated before
   call to \code{admbsecr}, providing this will prevent
@@ -102,9 +109,14 @@
   An object of class 'admb'.
 
   The following functions can be used to extract model
-  components: \code{summary()}, \code{AIC()},
-  \code{logLik()}, \code{deviance()}, \code{vcov()},
-  \code{coef()}, \code{stdEr()}, and \code{confint()}.
+  components: \code{\link[base]{summary}},
+  \code{\link[R2admb:AIC.admb]{AIC}},
+  \code{\link[R2admb:AIC.admb]{logLik}},
+  \code{\link[R2admb:AIC.admb]{deviance}},
+  \code{\link[R2admb:AIC.admb]{vcov}},
+  \code{\link[R2admb:AIC.admb]{coef}},
+  \code{\link[R2admb:AIC.admb]{stdEr}}, and
+  \code{\link[R2admb:AIC.admb]{confint}}.
 
   The latter takes arguments \code{level} and
   \code{method}, which specify the confidence level and
@@ -183,11 +195,5 @@
 }
 \author{
   Ben Stevenson
-}
-\seealso{
-  \code{\link[R2admb]{do_admb}},
-  \code{\link[secr]{secr.fit}},
-  \code{\link[secr]{make.capthist}},
-  \code{\link[secr]{read.traps}}.
 }
 
