@@ -2,7 +2,7 @@
 \alias{sim.capthist.ss}
 \title{Simulated signal strength capture history matrix}
 \usage{
-  sim.capthist.ss(traps, popn, detectpars)
+  sim.capthist.ss(traps, popn, detectpars, log.link)
 }
 \arguments{
   \item{traps}{trap locations.}
@@ -10,6 +10,9 @@
   \item{popn}{simulated population.}
 
   \item{detectpars}{detection function parameters.}
+
+  \item{log.link}{logical, if \code{TRUE} a log link
+  functin is used for expected signal strengths.}
 }
 \description{
   Simulating a signal strength capture history matrix.

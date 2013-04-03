@@ -186,8 +186,10 @@ toa.ssq <- function(wit, dists) {
 #' @param traps trap locations.
 #' @param popn simulated population.
 #' @param detectpars detection function parameters.
+#' @param log.link logical, if \code{TRUE} a log link functin is used for
+#' expected signal strengths.
 #' @export
-sim.capthist.ss <- function(traps, popn, detectpars){
+sim.capthist.ss <- function(traps, popn, detectpars, log.link){
   ssb0 <- detectpars$beta0
   ssb1 <- detectpars$beta1
   sigmass <- detectpars$sdS
@@ -195,7 +197,10 @@ sim.capthist.ss <- function(traps, popn, detectpars){
   ntraps <- nrow(traps)
   n <- nrow(popn)
   dists <- distances(as.matrix(popn), as.matrix(traps))
-  muss <- exp(ssb0 + ssb1*dists)
+  muss <- ssb0 + ssb1*dists
+  if (log.link){
+    muss <- exp(muss)
+  }
   ss.error <- matrix(rnorm(n*ntraps, 0, sigmass), nrow = n, ncol = ntraps)
   ss <- muss + ss.error
   ss[ss < c] <- 0
@@ -270,8 +275,10 @@ sim.capthist.dist <- function(traps, popn, detectpars){
 #' printed to the R session.
 #' @param trace logical, if \code{TRUE} parameter values at each step of the fitting
 #' algorithm are printed to the R session.
+#' @param detfn the detection function to be used. Either half normal (\code{"hn"}),
+#' hazard rate (\code{"hr"}) or threshold (\code{"th"}).
 #' @export
-mrdstrapcov <- function(capt, mask, traps, sv, admb.dir, clean, verbose, trace){
+mrdstrapcov <- function(capt, mask, traps, sv, admb.dir, clean, verbose, trace, detfn = "hn"){
   setwd(admb.dir)
   n <- dim(capt)[1]
   k <- dim(capt)[3]
@@ -281,11 +288,24 @@ mrdstrapcov <- function(capt, mask, traps, sv, admb.dir, clean, verbose, trace){
   capt <- array(as.vector(capt), dim = c(n, k, dim(capt)[4]))
   data <- list(n = n, ntraps = k, nmask = nm, A = A, capt = capt[, , 1],
                dist = dist, indivdist = capt[, , 2], trace = as.numeric(trace))
-  params <- list(D = sv[1], g01 = sv[2], sigma1 = sv[3],
-                 g02 = sv[4], sigma2 = sv[5])
-  bounds <- list(D = c(0, 1e8), g01 = c(0, 1), sigma1 = c(0, 1e5),
-                 g02 = c(0, 1), sigma2 = c(0, 1e5))
-  fit <- do_admb("mrdstrapcovsecr", data = data, params = params, bounds = bounds,
+  if (detfn == "hn"){
+    params <- list(D = sv[1], g01 = sv[2], sigma1 = sv[3],
+                   g02 = sv[4], sigma2 = sv[5])
+    bounds <- list(D = c(0, 1e8), g01 = c(0, 1), sigma1 = c(0, 1e5),
+                   g02 = c(0, 1), sigma2 = c(0, 1e5))
+
+  } else if (detfn == "th"){
+    params <- list(D = sv[1], shape1 = sv[2], scale1 = sv[3], shape2 = sv[4],
+                   scale2 = sv[5])
+    bounds <- list(D = c(0, 1e8), scale1 = c(-10, 0), scale2 = c(-10, 0))
+  } else if (detfn == "hr"){
+    params <- list(D = sv[1], g01 = sv[2], sigma1 = sv[3], z1 = sv[4],
+                   g02 = sv[5], sigma2 = sv[6], z2 = sv[7])
+    bounds <- list(D = c(0, 1e8), g01 = c(0, 1), sigma1 = c(0, 1e5),
+                   g02 = c(0, 1), sigma2 = c(0, 1e5))
+  }
+  filename <- paste("mrdstrapcovsecr", detfn, sep = "")
+  fit <- do_admb(filename, data = data, params = params, bounds = bounds,
                  verbose = verbose, safe = FALSE,
                  run.opts = run.control(checkdata = "write", checkparam = "write",
                    clean_files = clean))
@@ -313,8 +333,10 @@ mrdstrapcov <- function(capt, mask, traps, sv, admb.dir, clean, verbose, trace){
 #' printed to the R session.
 #' @param trace logical, if \code{TRUE} parameter values at each step of the fitting
 #' algorithm are printed to the R session.
+#' @param detfn the detection function to be used. Either half normal (\code{"hn"}),
+#' hazard rate (\code{"hr"}) or threshold (\code{"th"}).
 #' @export
-disttrapcov <- function(capt, mask, traps, sv, admb.dir, clean, verbose, trace){
+disttrapcov <- function(capt, mask, traps, sv, admb.dir, clean, verbose, trace, detfn = "hn"){
   setwd(admb.dir)
   n <- dim(capt)[1]
   k <- dim(capt)[3]
@@ -326,11 +348,25 @@ disttrapcov <- function(capt, mask, traps, sv, admb.dir, clean, verbose, trace){
   bincapt[bincapt != 0] <- 1
   data <- list(n = n, ntraps = k, nmask = nm, A = A, distcapt = capt,
                dist = dist, capt = bincapt, trace = as.numeric(trace))
-  params <- list(D = sv[1], g01 = sv[2], sigma1 = sv[3],
-                 g02 = sv[4], sigma2 = sv[5], alpha = sv[6])
-  bounds <- list(D = c(0, 1e8), g01 = c(0, 1), sigma1 = c(0, 1e5),
-                 g02 = c(0, 1), sigma2 = c(0, 1e5), alpha = c(0, 150))
-  fit <- do_admb("disttrapcovsecr", data = data, params = params, bounds = bounds,
+  if (detfn == "hn"){
+    params <- list(D = sv[1], g01 = sv[2], sigma1 = sv[3],
+                   g02 = sv[4], sigma2 = sv[5], alpha = sv[6])
+    bounds <- list(D = c(0, 1e8), g01 = c(0, 1), sigma1 = c(0, 1e5),
+                   g02 = c(0, 1), sigma2 = c(0, 1e5), alpha = c(0, 150))
+
+  } else if (detfn == "th"){
+    params <- list(D = sv[1], shape1 = sv[2], scale1 = sv[3], shape2 = sv[4],
+                   scale2 = sv[5], alpha = sv[6])
+    bounds <- list(D = c(0, 1e8), scale1 = c(-10, 0), scale2 = c(-10, 0),
+                   alpha = c(0, 150))
+  } else if (detfn == "hr"){
+    params <- list(D = sv[1], g01 = sv[2], sigma1 = sv[3], z1 = sv[4],
+                   g02 = sv[5], sigma2 = sv[6], z2 = sv[7], alpha = sv[8])
+    bounds <- list(D = c(0, 1e8), g01 = c(0, 1), sigma1 = c(0, 1e5),
+                   g02 = c(0, 1), sigma2 = c(0, 1e5), alpha = c(0, 150))
+  }
+  filename <- paste("disttrapcovsecr", detfn, sep = "")
+  fit <- do_admb(filename, data = data, params = params, bounds = bounds,
                  verbose = verbose, safe = FALSE,
                  run.opts = run.control(checkdata = "write", checkparam = "write",
                    clean_files = clean))

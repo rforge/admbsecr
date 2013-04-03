@@ -4,61 +4,49 @@ NULL
 
 #' Fitting SECR models in ADMB
 #'
+#' THE FOLLOWING INFORMATION IS OUT OF DATE AND REQUIRES A REWRITE.
+#'
 #' Fits an SECR model, with our without supplementary information relevant to animal
 #' location. Parameter estimation is done by maximum likelihood in ADMB.
 #'
 #' ADMB is called to fit an SECR model through use of the R2admb package. Different
 #' methods are used depending on the additional information on animal location that is
-#' collected. These are:
+#' collected. Different detection functions are used depending on the relationship between
+#' detection probability and distance from detector.
+#'
+#' Note that the method \code{"ss"} is a special case in that it incorporates its own detection
+#' function, and thus the half normal, hazard rate (etc) options cannot be specified. Instead,
+#' either \code{"identity"} (the default) or \code{"log"} can be provided for the argument
+#' \code{detfn}, which give the link function for the estimated received signal strengths.
+#'
+#' The parameter D, density of animals (in individuals per hectare) is always estimated.
+#' The other parameters in the model depend on the method and the detection function used.
+#'
+#' Possible methods, along with their parameters, are as follows:
+#'
 #' \itemize{
-#'    \item \code{"simple"}: Normal SECR with no additional information. Parameters to
-#'      estimate are:
+#'    \item \code{"simple"}: Normal SECR with no additional information. No additional parameters.
+#'     \item \code{"toa"}: SECR with precise time of arrival (TOA) recorded:
 #'   \itemize{
-#'          \item D:      Animal density.
-#'
-#'          \item g0:     Probability of detection at distance 0.
-#'
-#'          \item sigma:  'Standard deviation' parameter for halfnormal detection function.
+#'          \item sigmatoa: Error term associated with the normal distribution used to model TOA.
 #'   }
-#'     \item \code{"toa"}: SECR with precise time of arrival (TOA) recorded. Parameters to
-#'      estimate are:
-#'   \itemize{
-#'          \item D:        As above.
-#'
-#'          \item g0:       As above.
-#'
-#'          \item sigma:    As above.
-#'
-#'          \item sigmatoa: Error term associated with TOA.
-#'   }
-#'    \item \code{"ang"}: SECR with estimates of angle to animal recorded. Parameters to
-#'      estimate are:
+#'    \item \code{"ang"}: SECR with estimates of angle to animal recorded:
 #'    \itemize{
-#'          \item D:        As above.
-#'
-#'          \item g0:       As above.
-#'
-#'          \item sigma:    As above.
-#'
-#'          \item kappa:    Error term associated with angle estimation.
+#'          \item kappa:    Error term from a Von-Mises distribution, used to model estimated
+#'                       angles.
 #'    }
-#'    \item \code{"ss"}: SECR with received signal strengths at traps recorded. Parameters
-#'      to estimate are:
+#'    \item \code{"ss"}: SECR with received signal strengths at traps recorded:
 #'    \itemize{
-#'          \item D:        As above.
-#'
-#'          \item ssb0:     Average signal strength at sound source.
+#'          \item ssb0:     Signal strength at source.
 #'
 #'          \item ssb1:     Decrease in signal strength per unit distance due to sound
 #'                      propagation.
 #'
-#'          \item sigmass:  Error term associated with signal strength.
+#'          \item sigmass:  Error term associated with the normal distribution used to model signal strength.
 #'    }
 #'    \item \code{"sstoa"}: SECR with precise TOA and received signal strengths at traps
-#'      recorded. Parameters to estimate are:
+#'      recorded:
 #'    \itemize{
-#'          \item D:        As above.
-#'
 #'          \item sigmatoa: As above.
 #'
 #'          \item ssb0:     As above.
@@ -68,19 +56,44 @@ NULL
 #'          \item sigmass:  As above.
 #'    }
 #'    \item \code{"dist"}: SECR with estimated distances between animals
-#'      and traps at which detections occurred. Parameters to estimate are:
+#'      and traps at which detections occurred:
 #'    \itemize{
-#'          \item D:        As above.
-#'
-#'          \item g0:       As above.
-#'
-#'          \item sigma:    As above.
-#'
 #'          \item alpha:    Shape parameter associated with the gamma distribution
 #'                          used to model estimated distances.
 #'    }
 #' }
+#' Possible detection functions, along with their parameters, are as follows:
 #'
+#' \itemize{
+#'     \item \code{"hn"}: Half-normal detection function:
+#'   \itemize{
+#'          \item g0:       Probability of detection at distance 0.
+#'
+#'          \item sigma:    Scale parameter.
+#'   }
+#'    \item \code{"hr"}: Hazard rate detection function:
+#'    \itemize{
+#'          \item g0
+#'
+#'          \item sigma
+#'
+#'          \item z
+#'    }
+#'    \item \code{"th"}: Threshold detection function:
+#'    \itemize{
+#'          \item shape
+#'
+#'          \item scale
+#'    }
+#'    \item \code{"logth"}: Log-link threshold detection function:
+#'    \itemize{
+#'          \item shape1
+#'
+#'          \item shape2
+#'
+#'          \item scale
+#'    }
+#' }
 #' @param capt an array of dimension \code{(n, S, K)}, where \code{n} is the number of
 #' detected animals, \code{S} is number of individual sampling sessions, and \code{K}
 #' is the number of deployed traps. The object returned by  \code{make.capthist()} is
@@ -123,6 +136,10 @@ NULL
 #' \code{.tpl} file is located.
 #' @param method either \code{"simple"}, \code{"toa"}, \code{"ang"}, \code{"ss"}, or
 #' \code{"sstoa"}. See 'Details'.
+#' @param detfn the detection function to be used. Either half normal (\code{"hn"}),
+#' hazard rate (\code{"hr"}), threshold (\code{"th"}) or log-link threshold (\code{"logth"}.
+#' If method is \code{"ss"}, this argument gives the link function for the expected received
+#' signal strengths (either \code{"identity"}, the default, or \code{"log"}).
 #' @param memory value of \code{arrmblsize} in ADMB. Increase this if ADMB reports a
 #' memory error.
 #' @param profpars character vector of names of parameters over which profile likelihood
@@ -155,8 +172,8 @@ NULL
 #' @export
 admbsecr <- function(capt, traps = NULL, mask, sv = "auto", bounds = NULL, fix = NULL,
                      ssqtoa = NULL, cutoff = NULL, admbwd = NULL, method = "simple",
-                     memory = NULL, profpars = NULL, clean = TRUE, verbose = FALSE,
-                     trace = FALSE, autogen = TRUE){
+                     detfn = "hn" , memory = NULL, profpars = NULL, clean = TRUE,
+                     verbose = FALSE, trace = FALSE, autogen = TRUE){
   ## Warnings for incorrect input.
   if (length(method) != 1){
     stop("method must be of length 1")
@@ -172,6 +189,14 @@ admbsecr <- function(capt, traps = NULL, mask, sv = "auto", bounds = NULL, fix =
   }
   if (dim(capt)[2] != 1){
     stop("admbsecr only currently works for a single sampling session.")
+  }
+  if (method == "ss" | method == "sstoa"){
+    if (missing(detfn)){
+      detfn <- "identity"
+    } else if (!(detfn == "identity" | detfn == "log"))
+      stop("The \"ss\" and \"sstoa\" methods use their own detection function. \nThe 'detfn' argument can either be \"identity\" or \"log\" (see 'Details' in help file).")
+  } else if (!(detfn == "hn" | detfn == "th" | detfn == "logth" | detfn == "hr")){
+    stop("Detection function must be \"hn\", \"th\", \"logth\" or \"hr\"")
   }
   if (trace){
     verbose <- TRUE
@@ -189,16 +214,6 @@ admbsecr <- function(capt, traps = NULL, mask, sv = "auto", bounds = NULL, fix =
   if (!is.null(admbwd)){
     setwd(admbwd)
   }
-  if (autogen){
-    prefix <- "secr"
-    make.all.tpl.easy(memory = memory, methods = method)
-    bessel.exists <- file.access("bessel.cxx", mode = 0)
-    if (bessel.exists == -1){
-      make.bessel()
-    }
-  } else {
-    prefix <- paste(method, "secr", sep = "")
-  }
   ## If NAs are present in capture history object, change to zeros.
   capt[is.na(capt)] <- 0
   ## Extracting no. animals trapped (n) and traps (k) from capture history array.
@@ -214,14 +229,16 @@ admbsecr <- function(capt, traps = NULL, mask, sv = "auto", bounds = NULL, fix =
   } else if (length(dim(bincapt)) > 4){
     stop("capt array cannot have more than 4 dimensions.")
   }
+  ## Detection function parameters.
+  detnames <- c(c("g0", "sigma")[detfn == "hn" | detfn == "hr"],
+                c("shape", "scale")[detfn == "th"],
+                c("shape1", "shape2", "scale")[detfn == "logth"],
+                "z"[detfn == "hr"])
   ## Parameter names.
-  parnames <- c("D", "g0"[!(method == "ss" | method == "sstoa")],
-                "sigma"[!(method == "ss" | method == "sstoa")],
+  parnames <- c("D", detnames,
+                c("ssb0", "ssb1", "sigmass")[method == "ss" | method == "sstoa"],
                 "sigmatoa"[method == "toa" | method == "sstoa"],
                 "kappa"[method == "ang"],
-                "ssb0"[method == "ss" | method == "sstoa"],
-                "ssb1"[method == "ss" | method == "sstoa"],
-                "sigmass"[method == "ss" | method == "sstoa"],
                 "alpha"[method == "dist"])
   ## Setting number of model parameters.
   npars <- length(parnames)
@@ -229,11 +246,16 @@ admbsecr <- function(capt, traps = NULL, mask, sv = "auto", bounds = NULL, fix =
   default.bounds <- list(D = c(0, 1e8),
                          g0 = c(0, 1),
                          sigma = c(0, 1e5),
-                         sigmatoa = c(0, 1e5),
-                         kappa = c(0, 700),
+                         shape = NULL,
+                         shape1 = c(0, 1e5),
+                         shape2 = NULL,
+                         scale = c(-10, 0),
                          ssb0 = NULL,
                          ssb1 = c(-10, 0),
                          sigmass = c(0, 1e5),
+                         z = NULL,
+                         sigmatoa = c(0, 1e5),
+                         kappa = c(0, 700),
                          alpha = c(0, 150))[parnames]
   if (!(is.list(bounds) | is.null(bounds))){
     stop("bounds must either be NULL or a list.")
@@ -253,7 +275,7 @@ admbsecr <- function(capt, traps = NULL, mask, sv = "auto", bounds = NULL, fix =
   if (is.list(sv)){
     sv <- c(sv, recursive = TRUE)
   }
-  ##Setting sv to a vector full of "auto" if required.
+  ## Setting sv to a vector full of "auto" if required.
   if (length(sv) == 1 & sv[1] == "auto"){
     sv <- rep("auto", npars)
     names(sv) <- parnames
@@ -277,18 +299,32 @@ admbsecr <- function(capt, traps = NULL, mask, sv = "auto", bounds = NULL, fix =
     ## Reordering sv vector.
     sv <- sv[parnames]
   }
+  ## Creating .tpl file.
+  if (autogen){
+    prefix <- "secr"
+    make.all.tpl.easy(memory = memory, method = method,
+                      detfn = detfn, parnames = parnames)
+    bessel.exists <- file.access("bessel.cxx", mode = 0)
+    if (bessel.exists == -1){
+      make.bessel()
+    }
+  } else {
+    prefix <- paste(method, "secr", sep = "")
+  }
   ## Adding fixed parameters to "sv" in case they are required for
   ## determining further start values.
   for (i in names(fix)){
     sv[i] <- fix[[i]]
   }
   autofuns <- list("D" = autoD, "g0" = autog0, "sigma" = autosigma,
-                   "sigmatoa" = autosigmatoa, "kappa" = autokappa,
+                   "shape" = autoshape, "shape1" = autoshape1, "shape2" = autoshape2,
+                   "scale" = autoscale, "z" = autoz,
                    "ssb0" = autossb0, "ssb1" = autossb1,
-                   "sigmass" = autosigmass, "alpha" = autoalpha)
+                   "sigmass" = autosigmass, "sigmatoa" = autosigmatoa,
+                   "kappa" = autokappa, "alpha" = autoalpha)
   ## Replacing "auto" elements of sv vector.
   for (i in rev(which(sv == "auto"))){
-    sv[i] <- autofuns[[names(sv)[i]]](capt, bincapt, traps, mask, sv, cutoff, method)
+    sv[i] <- autofuns[[names(sv)[i]]](capt, bincapt, traps, mask, sv, cutoff, method, detfn)
   }
   sv <- as.numeric(sv)
   ## Removing attributes from capt and mask objects as do_admb cannot handle them.
@@ -340,6 +376,11 @@ admbsecr <- function(capt, traps = NULL, mask, sv = "auto", bounds = NULL, fix =
   } else {
     stop('method must be either "simple", "toa", "ang", "ss", "sstoa", "dist", or "mrds"')
   }
+  params <- list()
+  for (i in 1:npars){
+    params[[i]] <- sv[i]
+  }
+  names(params) <- parnames
   ## Removing fixed parameters from param list and adding them to the data instead.
   for (i in names(fix)){
     params[[i]] <- NULL
@@ -369,6 +410,8 @@ admbsecr <- function(capt, traps = NULL, mask, sv = "auto", bounds = NULL, fix =
   fit$traps <- traps
   fit$mask <- mask
   fit$method <- method
+  fit$detfn <- detfn
+  fit$parnames <- parnames
   class(fit) <- c(class(fit), method, "admbsecr")
   fit
 }

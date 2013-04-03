@@ -3,7 +3,7 @@
 \title{Fitting MRDS models.}
 \usage{
   mrdstrapcov(capt, mask, traps, sv, admb.dir, clean,
-    verbose, trace)
+    verbose, trace, detfn = "hn")
 }
 \arguments{
   \item{capt}{capture history array.}
@@ -26,6 +26,10 @@
   \item{trace}{logical, if \code{TRUE} parameter values at
   each step of the fitting algorithm are printed to the R
   session.}
+
+  \item{detfn}{the detection function to be used. Either
+  half normal (\code{"hn"}), hazard rate (\code{"hr"}) or
+  threshold (\code{"th"}).}
 }
 \description{
   Fits a mark-recapture distance sampling (MRDS) model,

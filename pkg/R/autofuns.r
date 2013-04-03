@@ -2,16 +2,16 @@
 
 ## Lifted from the secr package.
 autosigma <- function(capthist = NULL, bincapt, traps, mask, sv = NULL, cutoff = NULL,
-                      method = NULL){
+                      method = NULL, detfn = NULL){
   obsRPSV <- RPSV.mod(bincapt, traps)
   secr:::naivesigma(obsRPSV, traps, mask, 0, 1)
 }
 
 ## Lifted from the secr package.
-autoD <- function(capthist = NULL, bincapt, traps, mask, sv, cutoff = NULL, method = NULL){
+autoD <- function(capthist = NULL, bincapt, traps, mask, sv, cutoff = NULL, method = NULL, detfn){
   n <- dim(bincapt)[1]
   A <- attr(mask, "area")
-  if (method == "ss" | method == "sstoa"){
+  if (detfn != "hn"){
     g0 <- 0.95
     sigma <- autosigma(capthist, bincapt, traps, mask, sv, method)
   } else {
@@ -24,7 +24,7 @@ autoD <- function(capthist = NULL, bincapt, traps, mask, sv, cutoff = NULL, meth
 
 ## Don't think we can estimate this in advance for a single session.
 autog0 <- function(capthist = NULL, bincapt = NULL, traps = NULL, mask = NULL, sv = NULL,
-                   cutoff = NULL, method = NULL){
+                   cutoff = NULL, method = NULL, detfn = NULL){
   0.95
 }
 
@@ -32,7 +32,7 @@ autog0 <- function(capthist = NULL, bincapt = NULL, traps = NULL, mask = NULL, s
 ## overestimate as it assumes sound travels instantaneously. Does not
 ## seem to work well with frog data.
 autosigmatoa <- function(capthist = NULL, bincapt = NULL, traps = NULL, mask = NULL, sv = NULL,
-                         cutoff = NULL, method = NULL){
+                         cutoff = NULL, method = NULL, detfn = NULL){
   ## if (method == "sstoa"){
   ##   capthist <- capthist[, , , 2, drop = FALSE]
   ## }
@@ -42,7 +42,7 @@ autosigmatoa <- function(capthist = NULL, bincapt = NULL, traps = NULL, mask = N
 
 ## Haven't come up with a good way for this yet.
 autokappa <- function(capthist = NULL, bincapt = NULL, traps = NULL, mask = NULL, sv = NULL,
-                      cutoff = NULL, method = NULL){
+                      cutoff = NULL, method = NULL, detfn = NULL){
   10
 }
 
@@ -50,7 +50,7 @@ autokappa <- function(capthist = NULL, bincapt = NULL, traps = NULL, mask = NULL
 ## produced. Mean of received signal strengths is then converted to a
 ## mean for a truncated normal.
 autossb0 <- function(capthist, bincapt = NULL, traps = NULL, mask = NULL, sv = NULL,
-                     cutoff, method){
+                     cutoff, method, detfn){
   if (method == "sstoa"){
     capthist <- capthist[, , , 1, drop = FALSE]
   }
@@ -59,14 +59,19 @@ autossb0 <- function(capthist, bincapt = NULL, traps = NULL, mask = NULL, sv = N
   sigma <- sd(ss)
   alpha <- (cutoff - mu)/sigma
   lambda <- dnorm(alpha)/(1 - pnorm(alpha))
-  mu + sigma*lambda
+  if (detfn == "identity"){
+    out <- mu + sigma*lambda
+  } else if (detfn == "log"){
+    out <- log(mu + sigma*lambda)
+  }
+  out
 }
 
 ## Assumes signal strength received is almost equal to signal strength
 ## produced. Given a small negative value to get away from the
 ## paramter bound.
 autossb1 <- function(capthist = NULL, bincapt = NULL, traps = NULL, mask = NULL, sv = NULL,
-                     cutoff = NULL, method = NULL){
+                     cutoff = NULL, method = NULL, detfn = NULL){
   -0.1
 }
 
@@ -74,7 +79,7 @@ autossb1 <- function(capthist = NULL, bincapt = NULL, traps = NULL, mask = NULL,
 ## produced. Std dev of received signal strengths is then converted to
 ## a std dev for a truncated normal.
 autosigmass <- function(capthist, bincapt = NULL, traps = NULL, mask = NULL, sv = NULL,
-                        cutoff, method = NULL){
+                        cutoff, method = NULL, detfn = NULL){
   if (method == "sstoa"){
     capthist <- capthist[, , , 1, drop = FALSE]
   }
@@ -88,8 +93,33 @@ autosigmass <- function(capthist, bincapt = NULL, traps = NULL, mask = NULL, sv 
 }
 
 autoalpha <- function(capthist, bincapt = NULL, traps = NULL, mask = NULL, sv = NULL,
-                       cutoff = NULL, method = NULL){
+                       cutoff = NULL, method = NULL, detfn = NULL){
   2
+}
+
+autoshape <- function(capthist, bincapt = NULL, traps = NULL, mask = NULL, sv = NULL,
+                     cutoff = NULL, method = NULL, detfn = NULL){
+  -5
+}
+
+autoscale <- function(capthist, bincapt = NULL, traps = NULL, mask = NULL, sv = NULL,
+                     cutoff = NULL, method = NULL, detfn = NULL){
+  -0.1
+}
+
+autoshape1 <- function(capthist, bincapt = NULL, traps = NULL, mask = NULL, sv = NULL,
+                     cutoff = NULL, method = NULL, detfn = NULL){
+  20
+}
+
+autoshape2 <- function(capthist, bincapt = NULL, traps = NULL, mask = NULL, sv = NULL,
+                     cutoff = NULL, method = NULL, detfn = NULL){
+  3
+}
+
+autoz <- function(capthist, bincapt = NULL, traps = NULL, mask = NULL, sv = NULL,
+                     cutoff = NULL, method = NULL, detfn = NULL){
+  1
 }
 
 ## Following are helper functions for naive sigma estimation.
